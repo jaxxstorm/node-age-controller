@@ -28,6 +28,7 @@ var (
 	metricsAddr          = kingpin.Flag("metrics-addr", "The address the metric endpoint binds to").Default(":8080").String()
 	maxNodes             = kingpin.Flag("max-nodes", "The max number of nodes that can be cordoned at one time").Envar("MAX_NODES").Default("3").Int()
 	maxNodeAge           = kingpin.Flag("max-node-age", "How old is allowed to be before we attempt to cordon it").Envar("MAX_NODE_AGE").Default("720h").Duration()
+	minAvailableNodes    = kingpin.Flag("min-available-nodes", "How many nodes must be uncordoned before we attempt to cordon a node").Envar("MIN_AVAILABLE_NODES").Default("3").Int()
 )
 
 func init() {
@@ -58,12 +59,13 @@ func main() {
 	}
 
 	if err = (&controllers.NodeReconciler{
-		Client:     mgr.GetClient(),
-		Log:        ctrl.Log.WithName("controllers").WithName("Node"),
-		Scheme:     mgr.GetScheme(),
-		DryRun:     *dryRun,
-		MaxNodes:   *maxNodes,
-		MaxNodeAge: *maxNodeAge,
+		Client:            mgr.GetClient(),
+		Log:               ctrl.Log.WithName("controllers").WithName("Node"),
+		Scheme:            mgr.GetScheme(),
+		DryRun:            *dryRun,
+		MaxNodes:          *maxNodes,
+		MaxNodeAge:        *maxNodeAge,
+		MinAvailableNodes: *minAvailableNodes,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Node")
 		os.Exit(1)

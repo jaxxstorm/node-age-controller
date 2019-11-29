@@ -25,12 +25,13 @@ const ignoreAnnotation = "age.briggs.io/ignore"
 // NodeReconciler reconciles a Node object
 type NodeReconciler struct {
 	client.Client
-	Log        logr.Logger
-	Scheme     *runtime.Scheme
-	Recorder   record.EventRecorder
-	DryRun     bool
-	MaxNodes   int
-	MaxNodeAge time.Duration
+	Log               logr.Logger
+	Scheme            *runtime.Scheme
+	Recorder          record.EventRecorder
+	DryRun            bool
+	MaxNodes          int
+	MinAvailableNodes int
+	MaxNodeAge        time.Duration
 }
 
 // Reconcile reconciles a node
@@ -64,7 +65,7 @@ func (r *NodeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// check thresholds
-	thresholdMet, err := r.checkThresholds()
+	thresholdMet, err := r.checkThresholds(log)
 
 	if err != nil {
 		log.Error(err, "Error listing nodes")
@@ -159,7 +160,7 @@ func nodeAnnotated(node *corev1.Node) bool {
 // checks how many nodes are currently cordoned and compares
 // to the user set thresholds
 
-func (r *NodeReconciler) checkThresholds() (bool, error) {
+func (r *NodeReconciler) checkThresholds(log logr.Logger) (bool, error) {
 
 	nodes := &corev1.NodeList{}
 
@@ -176,7 +177,17 @@ func (r *NodeReconciler) checkThresholds() (bool, error) {
 		}
 	}
 
+	// Get the total number of nodes
+	n := len(nodes.Items)
+	available := n - count
+
+	if available <= r.MinAvailableNodes {
+		log.Info("Not enough nodes available, will not cordon")
+		return true, nil
+	}
+
 	if count >= r.MaxNodes {
+		log.Info("Too many nodes cordoned, will not cordon")
 		return true, nil
 	}
 
