@@ -25,11 +25,12 @@ const ignoreAnnotation = "age.briggs.io/ignore"
 // NodeReconciler reconciles a Node object
 type NodeReconciler struct {
 	client.Client
-	Log      logr.Logger
-	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
-	DryRun   bool
-	MaxNodes int
+	Log        logr.Logger
+	Scheme     *runtime.Scheme
+	Recorder   record.EventRecorder
+	DryRun     bool
+	MaxNodes   int
+	MaxNodeAge time.Duration
 }
 
 // Reconcile reconciles a node
@@ -78,15 +79,12 @@ func (r *NodeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	age := time.Since(node.ObjectMeta.CreationTimestamp.Time)
 	log.WithValues("Age", age).V(1).Info("Checking node age")
 
-	// get the desired node age
-	desiredAge, err := time.ParseDuration("2160h")
-
 	if err != nil {
 		log.Error(err, "Error parsing desired age")
 		return ctrl.Result{}, err
 	}
 
-	if age > desiredAge {
+	if age > r.MaxNodeAge {
 		if nodeCordoned(node) {
 			log.WithValues("Age", age).Info("Node is already cordoned")
 		} else {
