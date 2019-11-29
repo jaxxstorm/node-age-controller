@@ -3,7 +3,7 @@ module github.com/jaxxstorm/node-age-controller
 go 1.12
 
 require (
-	github.com/alecthomas/kingpin v1.3.8-0.20191105203113-8c96d1c22481 // indirect
+	github.com/alecthomas/kingpin v1.3.8-0.20191105203113-8c96d1c22481
 	github.com/davecgh/go-spew v1.1.1
 	github.com/go-logr/logr v0.1.0
 	github.com/onsi/ginkgo v1.6.0

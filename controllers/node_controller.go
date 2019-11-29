@@ -29,6 +29,7 @@ type NodeReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 	DryRun   bool
+	MaxNodes int
 }
 
 // Reconcile reconciles a node
@@ -55,14 +56,27 @@ func (r *NodeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
+	// if the node has the annotation, do nothing
 	if nodeAnnotated(node) {
 		log.Info("Node is annotated, ignoring")
 		return ctrl.Result{}, nil
 	}
 
+	// check thresholds
+	thresholdMet, err := r.checkThresholds()
+
+	if err != nil {
+		log.Error(err, "Error listing nodes")
+		return ctrl.Result{}, err
+	}
+
+	if thresholdMet {
+		log.Info("Cannot cordon any more nodes, threshold met")
+		return ctrl.Result{}, nil
+	}
+
 	age := time.Since(node.ObjectMeta.CreationTimestamp.Time)
-	name := node.ObjectMeta.Name
-	log.WithValues("Name", name, "Age", age).V(1).Info("Checking node age")
+	log.WithValues("Age", age).V(1).Info("Checking node age")
 
 	// get the desired node age
 	desiredAge, err := time.ParseDuration("2160h")
@@ -74,11 +88,11 @@ func (r *NodeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	if age > desiredAge {
 		if nodeCordoned(node) {
-			log.WithValues("Name", name, "Age", age).Info("Node is already cordoned")
+			log.WithValues("Age", age).Info("Node is already cordoned")
 		} else {
-			log.WithValues("Name", name, "Age", age).Info("Cordoning node")
+			log.WithValues("Age", age).Info("Cordoning node")
 			if r.DryRun {
-				log.WithValues("Name", name, "Age", age).Info("DryRun Enabled, not cordoning node")
+				log.WithValues("Age", age).Info("Dry run enabled, would have cordoned node")
 				return ctrl.Result{}, nil
 			}
 			updatedNode := cordonNode(node)
@@ -136,11 +150,38 @@ func nodeAnnotated(node *corev1.Node) bool {
 		if k == ignoreAnnotation {
 			if v == "true" {
 				return true
-			} else {
-				return false
 			}
+			return false
 		}
 	}
 	return false
+
+}
+
+// checks how many nodes are currently cordoned and compares
+// to the user set thresholds
+
+func (r *NodeReconciler) checkThresholds() (bool, error) {
+
+	nodes := &corev1.NodeList{}
+
+	err := r.Client.List(context.TODO(), nodes)
+	if err != nil {
+		return false, err
+	}
+
+	// check how many nodes cordoned
+	count := 0
+	for _, node := range nodes.Items {
+		if node.Spec.Unschedulable == true {
+			count++
+		}
+	}
+
+	if count >= r.MaxNodes {
+		return true, nil
+	}
+
+	return false, nil
 
 }
