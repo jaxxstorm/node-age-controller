@@ -26,6 +26,7 @@ var (
 	development          = kingpin.Flag("development", "Enable development logging").Bool()
 	enableLeaderElection = kingpin.Flag("enable-leader-election", "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.").Bool()
 	metricsAddr          = kingpin.Flag("metrics-addr", "The address the metric endpoint binds to").Default(":8080").String()
+	maxNodes             = kingpin.Flag("max-nodes", "The max number of nodes that can be cordoned at one time").Envar("MAX_NODES").Default("3").Int()
 )
 
 func init() {
@@ -56,10 +57,11 @@ func main() {
 	}
 
 	if err = (&controllers.NodeReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("Node"),
-		Scheme: mgr.GetScheme(),
-		DryRun: *dryRun,
+		Client:   mgr.GetClient(),
+		Log:      ctrl.Log.WithName("controllers").WithName("Node"),
+		Scheme:   mgr.GetScheme(),
+		DryRun:   *dryRun,
+		MaxNodes: *maxNodes,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Node")
 		os.Exit(1)
