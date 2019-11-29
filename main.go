@@ -61,6 +61,7 @@ func main() {
 	if err = (&controllers.NodeReconciler{
 		Client:            mgr.GetClient(),
 		Log:               ctrl.Log.WithName("controllers").WithName("Node"),
+		Recorder:          mgr.GetEventRecorderFor("node-controller"),
 		Scheme:            mgr.GetScheme(),
 		DryRun:            *dryRun,
 		MaxNodes:          *maxNodes,

@@ -100,7 +100,7 @@ func (r *NodeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			if err != nil {
 				return ctrl.Result{}, err
 			}
-			//r.Recorder.Eventf(updatedNode, corev1.EventTypeNormal, "TaintsChanged", "Added Taint briggs.io/aged")
+			r.Recorder.Eventf(node, corev1.EventTypeNormal, "NodeCordoned", "Cordon: Cordoning node that has reached age threshold: %s", node.Name)
 		}
 	}
 
