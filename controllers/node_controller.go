@@ -20,6 +20,8 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
 )
 
+const ignoreAnnotation = "age.briggs.io/ignore"
+
 // NodeReconciler reconciles a Node object
 type NodeReconciler struct {
 	client.Client
@@ -53,6 +55,11 @@ func (r *NodeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
+	if nodeAnnotated(node) {
+		log.Info("Node is annotated, ignoring")
+		return ctrl.Result{}, nil
+	}
+
 	age := time.Since(node.ObjectMeta.CreationTimestamp.Time)
 	name := node.ObjectMeta.Name
 	log.WithValues("Name", name, "Age", age).V(1).Info("Checking node age")
@@ -69,9 +76,9 @@ func (r *NodeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		if nodeCordoned(node) {
 			log.WithValues("Name", name, "Age", age).Info("Node is already cordoned")
 		} else {
-			log.WithValues("Name", name, "Age", age).Info("Tainting node")
+			log.WithValues("Name", name, "Age", age).Info("Cordoning node")
 			if r.DryRun {
-				log.WithValues("Name", name, "Age", age).Info("DryRun Enabled, not tainting node")
+				log.WithValues("Name", name, "Age", age).Info("DryRun Enabled, not cordoning node")
 				return ctrl.Result{}, nil
 			}
 			updatedNode := cordonNode(node)
@@ -102,8 +109,9 @@ func cordonNode(node *corev1.Node) *corev1.Node {
 	return copy
 }
 
+// loop through the taints and check for the presence of a master taint key
 func isMaster(node *corev1.Node) bool {
-	// loop through the taints and check for the presence of a master taint key
+
 	for _, taint := range node.Spec.Taints {
 		if taint.Key == "node-role.kubernetes.io/master" {
 			return true
@@ -112,10 +120,27 @@ func isMaster(node *corev1.Node) bool {
 	return false
 }
 
+// check the Unscheduleable field to determine if node is already cordoned
 func nodeCordoned(node *corev1.Node) bool {
-	// check the Unscheduleable field to determine if node is already cordoned
+
 	if node.Spec.Unschedulable {
 		return true
 	}
 	return false
+}
+
+// check the Annotations to see if this should be ignored
+func nodeAnnotated(node *corev1.Node) bool {
+
+	for k, v := range node.ObjectMeta.Annotations {
+		if k == ignoreAnnotation {
+			if v == "true" {
+				return true
+			} else {
+				return false
+			}
+		}
+	}
+	return false
+
 }
