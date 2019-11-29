@@ -95,13 +95,15 @@ func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func cordonNode(node *corev1.Node) *corev1.Node {
+	// takes the node option, and returns a copy of it with the
+	// "Unschedulable" set to true
 	copy := node.DeepCopy()
 	copy.Spec.Unschedulable = true
 	return copy
 }
 
 func isMaster(node *corev1.Node) bool {
-	// loop through the taints and check for the presence of a tain key
+	// loop through the taints and check for the presence of a master taint key
 	for _, taint := range node.Spec.Taints {
 		if taint.Key == "node-role.kubernetes.io/master" {
 			return true

@@ -5,9 +5,9 @@
 package main
 
 import (
-	"flag"
 	"os"
 
+	"github.com/alecthomas/kingpin"
 	"github.com/jaxxstorm/node-age-controller/controllers"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -21,6 +21,11 @@ import (
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
+
+	dryRun               = kingpin.Flag("dry-run", "Don't operate on nodes, only log what would happen").Envar("DRY_RUN").Bool()
+	development          = kingpin.Flag("development", "Enable development logging").Bool()
+	enableLeaderElection = kingpin.Flag("enable-leader-election", "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.").Bool()
+	metricsAddr          = kingpin.Flag("metrics-addr", "The address the metric endpoint binds to").Default(":8080").String()
 )
 
 func init() {
@@ -31,24 +36,18 @@ func init() {
 }
 
 func main() {
-	var metricsAddr string
-	var enableLeaderElection bool
-	var dryRun bool
-	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
-		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
-	flag.BoolVar(&dryRun, "dry-run", false,
-		"Don't operate on nodes, only log what would happen")
-	flag.Parse()
+	kingpin.Parse()
 
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {
-		o.Development = false
+		if *development {
+			o.Development = true
+		}
 	}))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
-		MetricsBindAddress: metricsAddr,
-		LeaderElection:     enableLeaderElection,
+		MetricsBindAddress: *metricsAddr,
+		LeaderElection:     *enableLeaderElection,
 		Port:               9443,
 	})
 	if err != nil {
@@ -60,7 +59,7 @@ func main() {
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("controllers").WithName("Node"),
 		Scheme: mgr.GetScheme(),
-		DryRun: dryRun,
+		DryRun: *dryRun,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Node")
 		os.Exit(1)
